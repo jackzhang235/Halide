@@ -1,34 +1,23 @@
 cmake_minimum_required(VERSION 3.14)
 project(Halide)
 
+add_subdirectory(dependencies)
+
 find_package(Threads QUIET)
 
 if ("${HALIDE_REQUIRE_LLVM_VERSION}" STREQUAL "")
     # Find any version present.
     find_package(LLVM REQUIRED CONFIG)
 else ()
-    # Find a specific version.
-    string(REGEX REPLACE
-            "^([0-9]+)([0-9])$"
-            "\\1"
-            MAJOR
-            "${HALIDE_REQUIRE_LLVM_VERSION}")
-    string(REGEX REPLACE
-            "^([0-9]+)([0-9])$"
-            "\\2"
-            MINOR
-            "${HALIDE_REQUIRE_LLVM_VERSION}")
-    message("HALIDE_REQUIRE_LLVM_VERSION ${HALIDE_REQUIRE_LLVM_VERSION}")
-    message("Looking for LLVM version ${MAJOR}.${MINOR}")
-    find_package(LLVM "${MAJOR}.${MINOR}" REQUIRED CONFIG)
-    if (NOT "${LLVM_VERSION_MAJOR}${LLVM_VERSION_MINOR}" STREQUAL "${MAJOR}${MINOR}")
-        message(FATAL_ERROR "LLVM version error: required ${MAJOR}${MINOR} but found ${LLVM_VERSION_MAJOR}${LLVM_VERSION_MINOR}")
-    endif ()
+    # Use a user-prescribed version.
+    find_package(LLVM "${HALIDE_REQUIRE_LLVM_VERSION}" EXACT REQUIRED CONFIG)
 endif ()
+get_property(LLVM_CONFIG TARGET llvm-config PROPERTY LOCATION)
 
 # Notify the user what paths and LLVM version we are using
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+message(STATUS "Found llvm-config at: ${LLVM_CONFIG}")
 
 if (MSVC AND NOT CMAKE_CONFIGURATION_TYPES)
     # LLVM5.x on Windows can include "$(Configuration)" in the path;
@@ -54,10 +43,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 set(LLVM_VERSION "${LLVM_VERSION_MAJOR}${LLVM_VERSION_MINOR}")
 
-file(TO_NATIVE_PATH "${LLVM_TOOLS_BINARY_DIR}/llvm-as${CMAKE_EXECUTABLE_SUFFIX}" LLVM_AS)
-file(TO_NATIVE_PATH "${LLVM_TOOLS_BINARY_DIR}/llvm-nm${CMAKE_EXECUTABLE_SUFFIX}" LLVM_NM)
 file(TO_NATIVE_PATH "${LLVM_TOOLS_BINARY_DIR}/clang${CMAKE_EXECUTABLE_SUFFIX}" CLANG)
-file(TO_NATIVE_PATH "${LLVM_TOOLS_BINARY_DIR}/llvm-config${CMAKE_EXECUTABLE_SUFFIX}" LLVM_CONFIG)
 
 if (LLVM_USE_SHARED_LLVM_LIBRARY)
     # Since we will be linking to the shared LLVM library,
@@ -133,8 +119,6 @@ function(check_tool_exists NAME PATH)
 endfunction()
 
 # Check LLVM tools exist
-check_tool_exists(llvm-as "${LLVM_AS}")
-check_tool_exists(llvm-nm "${LLVM_NM}")
 check_tool_exists(clang "${CLANG}")
 
 # Check reported LLVM version

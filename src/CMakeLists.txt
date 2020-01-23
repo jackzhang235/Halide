@@ -190,12 +190,12 @@ function(add_runtime_modules TARGET_RUNTIME_FILES TARGET_RUNTIME_DIR)
       add_custom_command(OUTPUT "${BC_D}"
                          # COMMENT "${LL_D} -> ${BC_D}"
                          DEPENDS "${LL_D}"
-                         COMMAND "${LLVM_AS}" "${LL_D}" -o "${BC_D}"
+                         COMMAND llvm-as "${LL_D}" -o "${BC_D}"
                          )
       add_custom_command(OUTPUT "${BC}"
                          # COMMENT "${LL} -> ${BC}"
                          DEPENDS "${LL}"
-                         COMMAND "${LLVM_AS}" "${LL}" -o "${BC}"
+                         COMMAND llvm-as "${LL}" -o "${BC}"
                          )
 
       add_custom_command(OUTPUT "${INITMOD_D}"
@@ -226,7 +226,7 @@ foreach (i ${RUNTIME_LL} )
   add_custom_command(OUTPUT "${BC}"
                      # COMMENT "${LL} -> ${BC}"
                      DEPENDS "${LL}"
-                     COMMAND "${LLVM_AS}" "${LL}" -o "${BC}"
+                     COMMAND llvm-as "${LL}" -o "${BC}"
                      )
   add_custom_command(OUTPUT "${INITMOD}"
                      # COMMENT "${BC} -> ${INITMOD}"
