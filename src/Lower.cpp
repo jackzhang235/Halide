@@ -129,7 +129,7 @@ Module lower(const vector<Function> &output_funcs,
     debug(1) << "Creating initial loop nests...\n";
     bool any_memoized = false;
     Stmt s = schedule_functions(outputs, fused_groups, env, t, any_memoized);
-    debug(2) << "Lowering after creating initial loop nests:\n"
+    debug(0) << "Lowering after creating initial loop nests:\n"
              << s << '\n';
 
     if (any_memoized) {
@@ -175,16 +175,16 @@ Module lower(const vector<Function> &output_funcs,
     // can still simplify Exprs).
     debug(1) << "Performing computation bounds inference...\n";
     s = bounds_inference(s, outputs, order, fused_groups, env, func_bounds, t);
-    debug(2) << "Lowering after computation bounds inference:\n"
+    debug(0) << "Lowering after computation bounds inference:\n"
              << s << '\n';
 
     debug(1) << "Removing extern loops...\n";
-    s = remove_extern_loops(s);
+    // s = remove_extern_loops(s);
     debug(2) << "Lowering after removing extern loops:\n"
              << s << '\n';
 
     debug(1) << "Performing sliding window optimization...\n";
-    s = sliding_window(s, env);
+    // s = sliding_window(s, env);
     debug(2) << "Lowering after sliding window:\n"
              << s << '\n';
 
@@ -217,7 +217,7 @@ Module lower(const vector<Function> &output_funcs,
              << s << "\n\n";
 
     debug(1) << "Performing storage folding optimization...\n";
-    s = storage_folding(s, env);
+    // s = storage_folding(s, env);
     debug(2) << "Lowering after storage folding:\n"
              << s << '\n';
 

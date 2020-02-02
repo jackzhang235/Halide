@@ -734,6 +734,7 @@ public:
                 result.push(farg,
                             Interval(Variable::make(Int(32), arg + ".min"),
                                      Variable::make(Int(32), arg + ".max")));
+                debug(0) << "populate_scope - " << arg << "\n";
             }
             if (stage > 0) {
                 for (const ReductionVariable &rv : rvars) {
@@ -743,6 +744,7 @@ public:
                 }
             }
 
+            debug(0) << "populate_scope end \n";
             /*for (size_t i = 0; i < func.definition().schedule().bounds().size(); i++) {
                 const Bound &b = func.definition().schedule().bounds()[i];
                 result.push(b.var, Interval(b.min, (b.min + b.extent) - 1));
@@ -824,12 +826,12 @@ public:
         new_stages.swap(stages);
 
         // Dump the stages post-inlining for debugging
-        /*
+        
         debug(0) << "Bounds inference stages after inlining: \n";
         for (size_t i = 0; i < stages.size(); i++) {
             debug(0) << " " << i << ") " << stages[i].name << "\n";
         }
-        */
+        
 
         // Then compute relationships between them.
         for (size_t i = 0; i < stages.size(); i++) {
@@ -870,6 +872,7 @@ public:
                 }
             } else {
                 for (const auto &cval : consumer.exprs) {
+                    debug(0) << "consumer.exprs - " << cval.value << "\n";
                     map<string, Box> new_boxes;
                     new_boxes = boxes_required(cval.value, scope, func_bounds);
                     for (auto &i : new_boxes) {
@@ -906,7 +909,7 @@ public:
 
                     // Dump out the region required of each stage for debugging.
 
-                    /*
+
                     debug(0) << "Box required of " << producer.name
                              << " by " << consumer.name
                              << " stage " << consumer.stage << ":\n";
@@ -914,7 +917,6 @@ public:
                         debug(0) << "  " << b[k].min << " ... " << b[k].max << "\n";
                     }
                     debug(0) << "\n";
-                    */
 
                     producer.bounds[{consumer.name, consumer.stage}] = b;
                     producer.consumers.push_back((int)i);
@@ -926,6 +928,7 @@ public:
         for (Function output : outputs) {
             Box output_box;
             string buffer_name = output.name();
+            debug(0) << "outputs size " << output.outputs() << "\n";
             if (output.outputs() > 1) {
                 // Use the output size of the first output buffer
                 buffer_name += ".0";
@@ -951,6 +954,7 @@ public:
             for (size_t i = 0; i < stages.size(); i++) {
                 Stage &s = stages[i];
                 if (!s.func.same_as(output)) continue;
+                debug(0) << "Updating to the output box\n";
                 s.bounds[{s.name, s.stage}] = output_box;
             }
         }
@@ -964,6 +968,8 @@ public:
         if (op->for_type == ForType::Extern) {
             return op;
         }
+
+        // debug(0) << "visit(const For *op) " << op->name << "\n";
 
         set<string> old_inner_productions;
         inner_productions.swap(old_inner_productions);
@@ -995,6 +1001,8 @@ public:
         Function f;
         int stage_index = -1;
         string stage_name;
+        // int group_index = -1;
+
         for (size_t i = 0; i < stages.size(); i++) {
             if (starts_with(op->name, stages[i].stage_prefix)) {
                 producing = i;
@@ -1004,6 +1012,13 @@ public:
                 break;
             }
         }
+
+        // for (size_t i = 0; i < fused_func_groups.size(); i++) {
+        //     for (const auto& func: fused_func_groups[i]) {
+        //         debug(0) << stage_name << " " << func.name  
+        //     }
+        // }
+        // internal_assert(group_index >= 0);
 
         // Figure out how much of it we're producing
         Box box;
@@ -1017,6 +1032,7 @@ public:
         body = mutate(body);
 
         if (!no_pipelines) {
+            // debug(0) << "!no_pipelines " << op->name << "\n\n\n\n\n\n";
             // We only care about the bounds of a func if:
             // A) We're not already in a pipeline over that func AND
             // B.1) There's a production of this func somewhere inside this loop OR
@@ -1041,23 +1057,30 @@ public:
                 }
             }
 
+            // debug(0) << body << "\n";
+            // debug(0) << "+no_pipelines " << op->name << "\n\n\n\n\n\n";
+
+            debug(0) << "visit(const For *op) " << op->name << " " << "\n";
+            for (auto prod : inner_productions) {
+                debug(0) << "inner prod - " << prod << "\n";
+            }
             // Finally, define the production bounds for the thing
             // we're producing.
-            if (producing >= 0 && !inner_productions.empty()) {
-                const vector<string> f_args = f.args();
-                for (size_t i = 0; i < box.size(); i++) {
-                    internal_assert(box[i].is_bounded());
-                    string var = stage_name + "." + f_args[i];
+            // if (producing >= 0 && !inner_productions.empty()) {
+            //     const vector<string> f_args = f.args();
+            //     for (size_t i = 0; i < box.size(); i++) {
+            //         internal_assert(box[i].is_bounded());
+            //         string var = stage_name + "." + f_args[i];
 
-                    if (box[i].is_single_point()) {
-                        body = LetStmt::make(var + ".max", Variable::make(Int(32), var + ".min"), body);
-                    } else {
-                        body = LetStmt::make(var + ".max", box[i].max, body);
-                    }
-
-                    body = LetStmt::make(var + ".min", box[i].min, body);
-                }
-            }
+            //         if (box[i].is_single_point()) {
+            //             body = LetStmt::make(var + ".max", Variable::make(Int(32), var + ".min"), body);
+            //         } else {
+            //             body = LetStmt::make(var + ".max", box[i].max, body);
+            //         }
+            //         body = LetStmt::make(var + ".min", box[i].min, body);
+            //         debug(0) << "Generating some min max for " << var << "\n" << box[i].min << "\n" << box[i].max << "\n";
+            //     }
+            // }
 
             // And the current bounds on its reduction variables, and
             // variables from extern for loops.
