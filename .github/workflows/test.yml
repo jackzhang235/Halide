@@ -11,18 +11,26 @@ on:
 
 jobs:
   test_halide:
-    name: Halide ${{matrix.os}}-${{matrix.bits}} llvm-${{matrix.llvm_version}} ${{matrix.build_tool}}
+    name: ${{matrix.arch}}-${{matrix.bits}}-${{matrix.shortname}}-testbranch-${{matrix.llvm_version}}00
     runs-on: ${{matrix.os}}
 
     strategy:
       fail-fast: false  # Keep running other jobs even if one fails
       matrix:
+        arch: [x86]
+        bits: [64]
         os: [ubuntu-18.04, macos-latest]
         build_tool: [cmake_shared, cmake_static, make]
-        bits: [64]
         llvm_version: [8, 9]
         cmake_gen: ["Unix Makefiles"]
         include:
+          - os: ubuntu-18.04
+            shortname: linux
+          - os: macos-latest
+            shortname: osx
+          - os: windows-latest
+            shortname: windows
+
           - build_tool: cmake_shared
             shared_library: ON
           - build_tool: cmake_static
@@ -153,6 +161,7 @@ jobs:
           -B "${HALIDE_BUILD_DIR}"
 
     - name: Build Halide (Make)
+      if: startsWith(matrix.build_tool, 'make')
       shell: bash
       run: |
         # Build Halide
@@ -160,6 +169,7 @@ jobs:
         make -f ${HALIDE_SOURCE_DIR}/Makefile -j ${PARALLEL_JOBS} distrib build_tests test_internal
 
     - name: Build Halide (CMake)
+      if: startsWith(matrix.build_tool, 'cmake')
       shell: bash
       run: |
         # Build Halide
@@ -167,6 +177,7 @@ jobs:
         cmake --build ${HALIDE_BUILD_DIR} -j ${PARALLEL_JOBS} --target all
 
     - name: Run Tests (Make)
+      if: startsWith(matrix.build_tool, 'make')
       shell: bash
       run: |
         # Test Halide
@@ -176,6 +187,7 @@ jobs:
         make -f ${HALIDE_SOURCE_DIR}/Makefile -j ${PARALLEL_JOBS} run_tests
 
     - name: Run Tests (CMake)
+      if: startsWith(matrix.build_tool, 'cmake')
       shell: bash
       run: |
         # Test Halide
