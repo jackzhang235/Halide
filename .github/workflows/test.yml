@@ -1,6 +1,7 @@
 # TODO:
 #  LLVM prebuilts for Windows aren't useful for our purposes; we must build our own.
 #  LLVM doesn't provide 32-bit Linux prebuilts anymore; we must build our own for x86-32 testing.
+#  LLVM doesn't provide MinGW prebuilts; we must build our own for x86-32 testing.
 #
 
 name: Build+Test
@@ -20,20 +21,27 @@ jobs:
         build_tool: [cmake_shared, cmake_static, make]
         bits: [64]
         llvm_version: [8, 9]
+        cmake_gen: ["Unix Makefiles"]
         include:
           - build_tool: cmake_shared
             shared_library: ON
           - build_tool: cmake_static
             shared_library: OFF
 
-          - llvm_version: 8
-            llvm_branch: release/8.x
-          - llvm_version: 9
-            llvm_branch: release/9.x
-          - llvm_version: 10
-            llvm_branch: release/10.x
-          - llvm_version: trunk
-            llvm_branch: master
+          # Map (os+llvm-version) -> download url
+          - os: ubuntu-18.04
+            llvm_version: 8
+            llvm_url: https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+          - os: ubuntu-18.04
+            llvm_version: 9
+            llvm_url: https://releases.llvm.org/9.0.0/clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+
+          - os: macos-latest
+            llvm_version: 8
+            llvm_url: https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-apple-darwin.tar.xz
+          - os: macos-latest
+            llvm_version: 9
+            llvm_url: https://releases.llvm.org/9.0.0/clang+llvm-9.0.0-x86_64-darwin-apple.tar.xz
 
           - os: macos-latest
             cc: clang
@@ -112,23 +120,12 @@ jobs:
         echo ::set-env name=HALIDE_TEMP_DIR::"${_TEMP}"
         echo ::set-env name=PARALLEL_JOBS::"$(expr $(nproc) + 2)"
 
-    - name: Install LLVM (Linux)
-      if: startsWith(matrix.os, 'ubuntu')
+    - name: Install LLVM
       shell: bash
       run: |
-        LLVM_URL="https://releases.llvm.org/${{matrix.llvm_version}}.0.0/clang+llvm-${{matrix.llvm_version}}.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
-        wget ${LLVM_URL} -O ${HALIDE_TEMP_DIR}/llvm-project.tar.xz
+        wget ${{matrix.llvm_url}} -O ${HALIDE_TEMP_DIR}/llvm-prebuilt.tar.xz
         mkdir ${LLVM_INSTALL_DIR}
-        tar xvf ${HALIDE_TEMP_DIR}/llvm-project.tar.xz -C ${LLVM_INSTALL_DIR} --strip-components=1
-
-    - name: Install LLVM (MacOS)
-      if: startsWith(matrix.os, 'macos')
-      shell: bash
-      run: |
-        LLVM_URL="https://releases.llvm.org/${{matrix.llvm_version}}.0.0/clang+llvm-${{matrix.llvm_version}}.0.0-x86_64-darwin-apple.tar.xz"
-        wget ${LLVM_URL} -O ${HALIDE_TEMP_DIR}/llvm-project.tar.xz
-        mkdir ${LLVM_INSTALL_DIR}
-        tar xvf ${HALIDE_TEMP_DIR}/llvm-project.tar.xz -C ${LLVM_INSTALL_DIR} --strip-components=1
+        tar xvf ${HALIDE_TEMP_DIR}/llvm-prebuilt.tar.xz -C ${LLVM_INSTALL_DIR} --strip-components=1
 
     - name: Configure Halide (Make)
       if: startsWith(matrix.build_tool, 'make')
