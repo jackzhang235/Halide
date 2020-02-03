@@ -1,0 +1,201 @@
+# TODO:
+#  LLVM prebuilts for Windows aren't useful for our purposes; we must build our own.
+#  LLVM doesn't provide 32-bit Linux prebuilts anymore; we must build our own for x86-32 testing.
+#
+
+name: Build+Test
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited, review_requested]
+
+jobs:
+  test_halide:
+    name: Halide ${{matrix.os}}-${{matrix.bits}} llvm-${{matrix.llvm_version}} ${{matrix.build_tool}}
+    runs-on: ${{matrix.os}}
+
+    strategy:
+      fail-fast: false  # Keep running other jobs even if one fails
+      matrix:
+        os: [ubuntu-18.04, macos-latest]
+        build_tool: [cmake_shared, cmake_static, make]
+        bits: [64]
+        llvm_version: [8, 9]
+        include:
+          - build_tool: cmake_shared
+            shared_library: ON
+          - build_tool: cmake_static
+            shared_library: OFF
+
+          - llvm_version: 8
+            llvm_branch: release/8.x
+          - llvm_version: 9
+            llvm_branch: release/9.x
+          - llvm_version: 10
+            llvm_branch: release/10.x
+          - llvm_version: trunk
+            llvm_branch: master
+
+          - os: macos-latest
+            cc: clang
+          - os: macos-latest
+            cxx: clang++
+
+          - os: ubuntu-18.04
+            cc: gcc
+          - os: ubuntu-18.04
+            cxx: g++
+
+          # Not used (yet), but will be soon, hopefully
+          # - os: windows-latest
+          #   cc: cl
+          # - os: windows-latest
+          #   cxx: cl
+          # - os: windows-latest
+          #   cmake_gen: "Visual Studio 16"
+          # - os: windows-latest
+          #   cmake_arch: "x64"
+          # - os: windows-latest
+          #   cmake_toolset: "host=x64"
+
+        exclude:
+          # Don't attempt 32-bit builds for macos
+          - os: macos-latest
+            bits: 32
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        path: 'halide'
+
+    - name: Configure Ubuntu
+      if: startsWith(matrix.os, 'ubuntu')
+      run: |
+        sudo apt-get update
+
+        # The standard Bionic install has gcc 7.4, which is known to be
+        # buggy with LLVM. Use gcc 8 instead.
+        # sudo apt-get install gcc-8 g++-8
+        # sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 100
+        # sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 100
+
+        # Install OpenGL
+        # TODO(srj): OpenGL is only needed to build the opengl tests (which we don't even run)...
+        sudo apt-get install libglu1-mesa-dev freeglut3-dev mesa-common-dev
+
+        # Install libpng
+        sudo apt-get -y --force-yes install libpng-dev
+
+        # Install doxygen
+        sudo apt-get -y --force-yes --no-install-recommends install doxygen
+
+    - name: Configure OSX
+      if: startsWith(matrix.os, 'macos')
+      run: |
+        # Install libpng, jpeg, doxygen
+        brew install libpng jpeg doxygen
+
+    - name: Configure Env Vars
+      shell: bash
+      run: |
+        # Demangle Windows names, to simplify CMake stuff later
+        _ROOT=${GITHUB_WORKSPACE//\\//}
+        _TEMP_RAW="${{runner.temp}}"
+        _TEMP=${_TEMP_RAW//\\//}
+
+        # This is the trick GitHub Actions uses to allow us to set env vars across all subsequent job steps
+        echo ::set-env name=CC::"${{matrix.cc}}"
+        echo ::set-env name=CXX::"${{matrix.cxx}}"
+        echo ::set-env name=LLVM_INSTALL_DIR::"${_ROOT}/llvm"
+        echo ::set-env name=LLVM_CONFIG::"${_ROOT}/llvm/bin/llvm-config"
+        echo ::set-env name=HALIDE_SOURCE_DIR::"${_ROOT}/halide"
+        echo ::set-env name=HALIDE_BUILD_DIR::"${_ROOT}/halide_build"
+        echo ::set-env name=HALIDE_TEMP_DIR::"${_TEMP}"
+        echo ::set-env name=PARALLEL_JOBS::"$(expr $(nproc) + 2)"
+
+    - name: Install LLVM (Linux)
+      if: startsWith(matrix.os, 'ubuntu')
+      shell: bash
+      run: |
+        LLVM_URL="https://releases.llvm.org/${{matrix.llvm_version}}.0.0/clang+llvm-${{matrix.llvm_version}}.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz"
+        wget ${LLVM_URL} -O ${HALIDE_TEMP_DIR}/llvm-project.tar.xz
+        mkdir ${LLVM_INSTALL_DIR}
+        tar xvf ${HALIDE_TEMP_DIR}/llvm-project.tar.xz -C ${LLVM_INSTALL_DIR} --strip-components=1
+
+    - name: Install LLVM (MacOS)
+      if: startsWith(matrix.os, 'macos')
+      shell: bash
+      run: |
+        LLVM_URL="https://releases.llvm.org/${{matrix.llvm_version}}.0.0/clang+llvm-${{matrix.llvm_version}}.0.0-x86_64-darwin-apple.tar.xz"
+        wget ${LLVM_URL} -O ${HALIDE_TEMP_DIR}/llvm-project.tar.xz
+        mkdir ${LLVM_INSTALL_DIR}
+        tar xvf ${HALIDE_TEMP_DIR}/llvm-project.tar.xz -C ${LLVM_INSTALL_DIR} --strip-components=1
+
+    - name: Configure Halide (Make)
+      if: startsWith(matrix.build_tool, 'make')
+      shell: bash
+      run: |
+        # Configure Make
+        mkdir ${HALIDE_BUILD_DIR}
+
+    - name: Configure Halide (CMake)
+      if: startsWith(matrix.build_tool, 'cmake')
+      shell: bash
+      run: |
+        # Configure CMake
+        mkdir ${HALIDE_BUILD_DIR}
+
+        cmake \
+          -D CMAKE_BUILD_TYPE=Release \
+          -D LLVM_DIR="${LLVM_INSTALL_DIR}/lib/cmake/llvm" \
+          -D HALIDE_REQUIRE_LLVM_VERSION="${{matrix.llvm_version}}0" \
+          -D HALIDE_SHARED_LIBRARY=${{matrix.shared_library}} \
+          -G "${{matrix.cmake_gen}}" \
+          -A "${{matrix.cmake_arch}}" \
+          -T "${{matrix.cmake_toolset}}" \
+          -S "${HALIDE_SOURCE_DIR}" \
+          -B "${HALIDE_BUILD_DIR}"
+
+    - name: Build Halide (Make)
+      shell: bash
+      run: |
+        # Build Halide
+        cd ${HALIDE_BUILD_DIR}
+        make -f ${HALIDE_SOURCE_DIR}/Makefile -j ${PARALLEL_JOBS} distrib build_tests test_internal
+
+    - name: Build Halide (CMake)
+      shell: bash
+      run: |
+        # Build Halide
+        cd ${HALIDE_BUILD_DIR}
+        cmake --build ${HALIDE_BUILD_DIR} -j ${PARALLEL_JOBS} --target all
+
+    - name: Run Tests (Make)
+      shell: bash
+      run: |
+        # Test Halide
+        export TEST_TMPDIR="${HALIDE_TEMP_DIR}"
+        cd ${HALIDE_BUILD_DIR}
+
+        make -f ${HALIDE_SOURCE_DIR}/Makefile -j ${PARALLEL_JOBS} run_tests
+
+    - name: Run Tests (CMake)
+      shell: bash
+      run: |
+        # Test Halide
+        TEST_GROUPS_BROKEN="opengl|auto_schedule"
+        TEST_GROUPS_SERIAL="performance"
+
+        export TEST_TMPDIR="${HALIDE_TEMP_DIR}"
+        cd ${HALIDE_BUILD_DIR}
+
+        # Parallel
+        ctest \
+          -j ${PARALLEL_JOBS} \
+          -LE "${TEST_GROUPS_BROKEN}|${TEST_GROUPS_SERIAL}" \
+          --output-on-failure
+
+        # Serial
+        ctest \
+          -L "${TEST_GROUPS_SERIAL}" \
+          --output-on-failure
+
