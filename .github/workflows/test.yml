@@ -141,6 +141,7 @@ jobs:
         wget ${{matrix.llvm_url}} -O ${HALIDE_TEMP_DIR}/llvm-prebuilt.tar.xz
         mkdir ${LLVM_INSTALL_DIR}
         tar xvf ${HALIDE_TEMP_DIR}/llvm-prebuilt.tar.xz -C ${LLVM_INSTALL_DIR} --strip-components=1
+        rm -rf ${HALIDE_TEMP_DIR}/llvm-prebuilt.tar.xz
 
     - name: Configure Halide (Make)
       if: startsWith(matrix.build_tool, 'make')
