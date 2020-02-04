@@ -11,12 +11,15 @@ on:
 
 jobs:
   test_halide:
-    name: ${{matrix.arch}}-${{matrix.bits}}-${{matrix.shortname}}-testbranch-${{matrix.llvm_version}}00
+    name: ${{matrix.arch}}-${{matrix.bits}}-${{matrix.shortname}}-testbranch-${{matrix.llvm_version}}00 (${{matrix.build_tool}})
     runs-on: ${{matrix.os}}
 
     strategy:
       fail-fast: false  # Keep running other jobs even if one fails
       matrix:
+        # TODO: this is probably overkill; we probably don't need to build the full
+        # matrix (and since we are limited to 8 concurrent tests, it would be
+        # useful to prune this a bit).
         arch: [x86]
         bits: [64]
         os: [ubuntu-18.04, macos-latest]
@@ -97,6 +100,9 @@ jobs:
         # Install OpenGL
         # TODO(srj): OpenGL is only needed to build the opengl tests (which we don't even run)...
         sudo apt-get install libglu1-mesa-dev freeglut3-dev mesa-common-dev
+
+        # Install libjpeg
+        sudo apt-get -y --force-yes install libjpeg-dev
 
         # Install libpng
         sudo apt-get -y --force-yes install libpng-dev
