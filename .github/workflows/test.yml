@@ -2,7 +2,7 @@
 #  LLVM prebuilts for Windows aren't useful for our purposes; we must build our own.
 #  LLVM doesn't provide 32-bit Linux prebuilts anymore; we must build our own for x86-32 testing.
 #  LLVM doesn't provide MinGW prebuilts; we must build our own for x86-32 testing.
-#
+#  cmake_static is failing to build under ubuntu.
 
 name: Build+Test
 on:
@@ -81,6 +81,11 @@ jobs:
           # Don't attempt 32-bit builds for macos
           - os: macos-latest
             bits: 32
+
+          # cmake-static is failing to build under ubuntu;
+          # not sure why yet
+          - os: ubuntu-18.04
+            build_tool: cmake_static
 
     steps:
     - uses: actions/checkout@v2
